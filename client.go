@@ -20,6 +20,7 @@ type Client struct {
 	password     string
 	client       *http.Client
 	LastResponse *http.Response
+	BasicAuth    bool
 }
 
 type MultipartForm struct {
@@ -49,7 +50,7 @@ func NewBasicAuthClient(surl, username, password string) (*Client, error) {
 		return nil, errors.New("URL is not absolute")
 	}
 
-	return &Client{url: nurl, username: username, password: password, client: &http.Client{}}, nil
+	return &Client{url: nurl, BasicAuth: true, username: username, password: password, client: &http.Client{}}, nil
 }
 
 func (c *Client) GetQuery(uri string) (string, error) {
@@ -75,8 +76,6 @@ func (c *Client) MakeRequest(method, uri string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	request.SetBasicAuth(c.username, c.password)
 
 	return request, nil
 }
@@ -127,12 +126,14 @@ func (c *Client) MakeMultipartRequest(method, uri string, mpf MultipartForm) (re
 
 	req.Header.Add("Content-Type", w.FormDataContentType())
 
-	req.SetBasicAuth(c.username, c.password)
-
 	return
 }
 
 func (c *Client) GetResponse(r *http.Request) (res *http.Response, err error) {
+	if c.BasicAuth {
+		r.SetBasicAuth(c.username, c.password)
+	}
+
 	res, err = c.client.Do(r)
 	if err != nil {
 		return nil, err
