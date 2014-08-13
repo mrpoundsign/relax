@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 )
 
 type Client struct {
@@ -86,10 +87,9 @@ func (c *Client) MakeMultipartRequest(method, uri string, mpf MultipartForm) (re
 		return nil, err
 	}
 
-	var b bytes.Buffer
+	b := &bytes.Buffer{}
 
-	w := multipart.NewWriter(&b)
-	defer w.Close()
+	w := multipart.NewWriter(b)
 
 	// Add files
 	for field, file := range mpf.Files {
@@ -97,7 +97,7 @@ func (c *Client) MakeMultipartRequest(method, uri string, mpf MultipartForm) (re
 		if err != nil {
 			return nil, errors.New(fmt.Sprintf("Error with file %s, %s", file, err.Error()))
 		}
-		fw, err := w.CreateFormFile(field, file)
+		fw, err := w.CreateFormFile(field, filepath.Base(file))
 		if err != nil {
 			return nil, err
 		}
@@ -105,6 +105,7 @@ func (c *Client) MakeMultipartRequest(method, uri string, mpf MultipartForm) (re
 		if err != nil {
 			return nil, err
 		}
+		f.Close()
 	}
 
 	for field, value := range mpf.Fields {
@@ -114,10 +115,17 @@ func (c *Client) MakeMultipartRequest(method, uri string, mpf MultipartForm) (re
 		}
 	}
 
-	req, err = http.NewRequest(method, query, &b)
+	err = w.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err = http.NewRequest(method, query, b)
 	if err != nil {
 		return req, err
 	}
+
+	req.Header.Add("Content-Type", w.FormDataContentType())
 
 	req.SetBasicAuth(c.username, c.password)
 
