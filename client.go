@@ -23,6 +23,19 @@ type Client struct {
 	BasicAuth    bool
 }
 
+func NewClient(surl string) (*Client, error) {
+	nurl, err := url.Parse(surl)
+	if err != nil {
+		return nil, err
+	}
+
+	if !nurl.IsAbs() {
+		return nil, errors.New("URL is not absolute")
+	}
+
+	return &Client{url: nurl, BasicAuth: false, client: &http.Client{}}, nil
+}
+
 func NewBasicAuthClient(surl, username, password string) (*Client, error) {
 	if username == "" {
 		return nil, errors.New("username is empty")
