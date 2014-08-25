@@ -104,6 +104,8 @@ func (c *Client) MakeMultipartRequest(method, uri string, mpf MultipartForm) (re
 		if err != nil {
 			return nil, errors.New(fmt.Sprintf("Error with file %s, %s", file, err.Error()))
 		}
+		defer f.Close()
+
 		fw, err := w.CreateFormFile(field, filepath.Base(file))
 		if err != nil {
 			return nil, err
@@ -112,7 +114,6 @@ func (c *Client) MakeMultipartRequest(method, uri string, mpf MultipartForm) (re
 		if err != nil {
 			return nil, err
 		}
-		f.Close()
 	}
 
 	for field, value := range mpf.Fields {
