@@ -196,9 +196,6 @@ func (c *Client) UpdateJson(uri string, data interface{}, response interface{}) 
 }
 
 func (c *Client) jsonResponse(req *http.Request, response interface{}) (err error) {
-	if response == nil {
-		return nil
-	}
 
 	res, err := c.GetResponse(req)
 	if err != nil {
@@ -208,6 +205,10 @@ func (c *Client) jsonResponse(req *http.Request, response interface{}) (err erro
 	c.LastBody, err = ioutil.ReadAll(res.Body)
 	if err != nil {
 		return err
+	}
+
+	if response == nil {
+		return nil
 	}
 
 	err = json.Unmarshal(c.LastBody, &response)
