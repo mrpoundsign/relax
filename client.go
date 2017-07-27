@@ -20,33 +20,15 @@ import (
 
 type Client struct {
 	url          *url.URL
-	username     string
-	password     string
+	apiKey       string
 	client       *http.Client
 	LastResponse *http.Response
-	BasicAuth    bool
+	LastBody     []byte
 }
 
-func NewClient(surl string) (*Client, error) {
-	nurl, err := url.Parse(surl)
-	if err != nil {
-		return nil, err
-	}
-
-	if !nurl.IsAbs() {
-		return nil, errors.New("URL is not absolute")
-	}
-
-	return &Client{url: nurl, BasicAuth: false, client: &http.Client{}}, nil
-}
-
-func NewBasicAuthClient(surl, username, password string) (*Client, error) {
-	if username == "" {
-		return nil, errors.New("username is empty")
-	}
-
-	if password == "" {
-		return nil, errors.New("password is empty")
+func NewClient(surl, apiKey string) (*Client, error) {
+	if apiKey == "" {
+		return nil, errors.New("api key is empty")
 	}
 
 	nurl, err := url.Parse(surl)
@@ -58,7 +40,7 @@ func NewBasicAuthClient(surl, username, password string) (*Client, error) {
 		return nil, errors.New("URL is not absolute")
 	}
 
-	return &Client{url: nurl, BasicAuth: true, username: username, password: password, client: &http.Client{}}, nil
+	return &Client{url: nurl, client: &http.Client{}, apiKey: apiKey}, nil
 }
 
 func (c *Client) GetQuery(uri string) (string, error) {
@@ -138,9 +120,18 @@ func (c *Client) MakeMultipartRequest(method, uri string, mpf MultipartForm) (re
 	return
 }
 
+func (c *Client) PostMultipartJson(uri string, mpf MultipartForm, data interface{}) (err error) {
+	req, err := c.MakeMultipartRequest(http.MethodPost, uri, mpf)
+	if err != nil {
+		return err
+	}
+
+	return c.jsonResponse(req, &data)
+}
+
 func (c *Client) GetResponse(r *http.Request) (res *http.Response, err error) {
-	if c.BasicAuth {
-		r.SetBasicAuth(c.username, c.password)
+	if c.apiKey != "" {
+		r.Header.Set("Autorization", fmt.Sprintf("Token token=\"%s\"", c.apiKey))
 	}
 
 	res, err = c.client.Do(r)
@@ -148,37 +139,82 @@ func (c *Client) GetResponse(r *http.Request) (res *http.Response, err error) {
 		return nil, err
 	}
 	c.LastResponse = res
+
 	return res, nil
 }
 
-func (c *Client) GetJson(uri string, data interface{}) (err error) {
-	req, err := c.MakeRequest("GET", uri)
+func (c *Client) ReadJson(uri string, response interface{}) (err error) {
+	req, err := c.MakeRequest(http.MethodGet, uri)
 	if err != nil {
 		return err
 	}
 
-	return c.jsonResponse(req, &data)
+	return c.jsonResponse(req, &response)
 }
 
-func (c *Client) PostMultipartJson(uri string, mpf MultipartForm, data interface{}) (err error) {
-	req, err := c.MakeMultipartRequest("POST", uri, mpf)
+func (c *Client) DeleteJson(uri string, response interface{}) (err error) {
+	req, err := c.MakeRequest(http.MethodDelete, uri)
 	if err != nil {
 		return err
 	}
 
-	return c.jsonResponse(req, &data)
+	return c.jsonResponse(req, &response)
 }
 
-func (c *Client) jsonResponse(req *http.Request, data interface{}) (err error) {
+func (c *Client) CreateJson(uri string, data interface{}, response interface{}) (err error) {
+	req, err := c.MakeRequest(http.MethodPost, uri)
+	if err != nil {
+		return err
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application.json")
+	req.Body = ioutil.NopCloser(bytes.NewReader(jsonData))
+
+	return c.jsonResponse(req, &response)
+}
+
+func (c *Client) UpdateJson(uri string, data interface{}, response interface{}) (err error) {
+	req, err := c.MakeRequest(http.MethodPut, uri)
+	if err != nil {
+		return err
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Body = ioutil.NopCloser(bytes.NewReader(jsonData))
+
+	return c.jsonResponse(req, &response)
+}
+
+func (c *Client) jsonResponse(req *http.Request, response interface{}) (err error) {
+	if response == nil {
+		return nil
+	}
+
 	res, err := c.GetResponse(req)
 	if err != nil {
 		return err
 	}
 
-	body, err := ioutil.ReadAll(res.Body)
+	c.LastBody, err = ioutil.ReadAll(res.Body)
 	if err != nil {
 		return err
 	}
 
-	return json.Unmarshal(body, &data)
+	err = json.Unmarshal(c.LastBody, &response)
+
+	if err != nil {
+		return fmt.Errorf("Invalid JSON: %s", c.LastBody)
+	}
+
+	return nil
 }
