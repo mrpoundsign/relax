@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 )
 
 type Client struct {
@@ -207,7 +208,8 @@ func (c *Client) jsonResponse(req *http.Request, response interface{}) (err erro
 		return err
 	}
 
-	if response == nil {
+	if reflect.ValueOf(response).IsNil() {
+		fmt.Println("Response is nil")
 		return nil
 	}
 
